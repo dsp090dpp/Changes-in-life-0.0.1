@@ -1,0 +1,164 @@
+
+# Modding Guide for the Visual Novel "Changes"
+
+Welcome to the modding guide! The visual novel "Changes" features a built-in mod system that allows authors to add their own events, dialogues, modify variables, and create custom settings for players.
+
+**Engine Version:** Ren'Py 8.5.3
+**Programming Language:** Python / Ren'Py Script
+
+---
+
+## 1. Mod Folder Structure
+
+All mods must be placed in the `game/mods/` folder. Each mod must be in a separate folder. The folder name can be anything, but Latin characters are recommended.
+
+Example of a correct structure:
+```
+game/
+  mods/
+    my_first_mod/
+      mod.rpy       <-- Your mod's main file
+      images/       <-- (Optional) Your images
+      audio/        <-- (Optional) Your music
+2. Basic Mod Template
+Every mod starts with registration. Create a mod.rpy file inside your mod's folder and use the following template:
+
+
+# game/mods/my_first_mod/mod.rpy
+
+init python:
+    # 1. MOD REGISTRATION
+    # mod_id must be UNIQUE, Latin characters and underscores only, no spaces!
+    register_mod(
+        mod_id="my_first_mod",
+        name="My First Mod",
+        version="1.0.0",
+        author="Your Name",
+        description="A brief description of what this mod does."
+    )
+    
+    # 2. SUBSCRIBING TO EVENTS (HOOKS)
+    # See section 3 for the list of available hooks.
+    register_hook("day_start", "my_first_mod")
+    register_hook("after_load", "my_first_mod")
+
+
+# 3. VARIABLE INITIALIZATION
+# Use init 10 so variables are created after the mod manager loads
+init 10 python:
+    # Create a mod setting in persistent (saved forever)
+    if persistent.my_first_mod_extra_text is None:
+        persistent.my_first_mod_extra_text = True
+        
+    # Create a local variable (saved only in the game save slot)
+    if not hasattr(store, "my_mod_counter"):
+        store.my_mod_counter = 0
+3. Available Events (Hooks)
+Hooks are points in the game's script where mods can "intervene". For your code to execute at the right time, subscribe to a hook using register_hook and create a special label.
+
+List of available hooks:
+
+"new_game" — Triggered once when starting a new game (after entering the name).
+
+"day_start" — Triggered at the beginning of each new in-game day.
+
+"day_end" — Triggered before sleep/transition to the next day.
+
+"after_load" — Triggered immediately after loading a save.
+
+How to write code for hooks
+The label name must strictly follow the template: mod_<your_mod_id>_<hook_name>.
+Important: Always use return at the end of the label, never jump!
+
+
+label mod_my_first_mod_day_start:
+    # Just in case, check if the mod is enabled
+    if not mod_enabled("my_first_mod"):
+        return
+        
+    $ store.my_mod_counter += 1
+    
+    # If the mod setting is enabled and it's the 2nd day of the game
+    if persistent.my_first_mod_extra_text and store.my_mod_counter == 2:
+        "System" "Mod 'My First Mod' is active! This is the second day."
+        
+    return
+4. Creating a Mod Settings Menu
+Players can enable, disable, and sort mods in the game's main menu. They can also configure each mod individually!
+
+To make your "Configure" button appear in the game menu:
+
+Create a screen named strictly mod_settings_<your_mod_id>.
+
+It will appear automatically in the game menu.
+
+
+screen mod_settings_my_first_mod():
+    tag menu
+    modal True
+    
+    # Dark background in the style of the mod manager
+    add Solid("#1a1510E6")
+    
+    frame:
+        xpos 0.2
+        ypos 0.2
+        xsize 0.6
+        ysize 0.6
+        background Solid("#3b3024D9")
+        padding (20, 20)
+        
+        vbox:
+            spacing 20
+            text _("Settings: My First Mod") size 28 color "#ffffff" bold True
+            
+            # IMPORTANT: Square brackets in text must be doubled [[ 
+            # so Ren'Py doesn't try to find a variable [X]
+            $ btn_text = _("[[X] Enable extra dialogues") if persistent.my_first_mod_extra_text else _("[[  ] Enable extra dialogues")
+            
+            textbutton btn_text:
+                action SetField(persistent, "my_first_mod_extra_text", not persistent.my_first_mod_extra_text)
+                text_size 20
+                text_color "#d1c1a9"
+                text_hover_color "#ffffff"
+                
+            null height 20
+            
+            # Return button to the mod menu
+            textbutton _("Back"):
+                action Return()
+                text_size 20
+                text_color "#8fbc8f"
+                text_hover_color "#ffffff"
+5. Data Saving
+In mods, you can use two data storage models:
+
+persistent.<variable_name>
+
+Purpose: Global mod settings (enable/disable features).
+
+Feature: Saved forever, even if the player deletes all saves and starts a new game.
+
+store.<variable_name>
+
+Purpose: Story variables, day counters, relationships.
+
+Feature: Saved only inside a specific game save. If the player loads another slot, the value will be different.
+
+6. Interaction with the Mod Manager
+The game features a powerful manager, and as a mod author, you need to know about two things:
+
+Load Order: The player can change the order of mods using arrows. If two mods use the same hook (e.g., day_start), they will execute in the order chosen by the player. This is useful if your dialogues depend on events from another mod.
+
+Conflicts: If two mods using the same hook are enabled, the manager will automatically highlight this in red. This is not an error, but a warning for the player.
+
+7. Golden Rules of Modding
+Don't break the game: Do not override the base functions and variables of the main game unless absolutely necessary. Try to add new things rather than rewriting old ones.
+
+Uniqueness: Always use a unique mod_id. If two mods have the same ID, the second one will simply not load.
+
+Escaping brackets: Always write [[ and ]] if you want to display square brackets in text (e.g., [[X]), otherwise the game will throw a ValueError: expected expression error.
+
+return in labels: Always use return in hooks (mod_your_id_day_start). Using jump will break the game flow, and the game will return to the main menu.
+
+Testing: Before publishing a mod, test how it works on a clean game and how it works together with other mods.
